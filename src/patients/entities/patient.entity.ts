@@ -7,6 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  DeleteDateColumn,
 } from 'typeorm';
 import { Antecedent } from './antecedent.entity';
 import { Anthropometric } from './anthropometric.entity';
@@ -65,4 +66,7 @@ export class PatientEntity {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }

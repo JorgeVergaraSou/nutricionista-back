@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn } from 'typeorm';
 import { PatientEntity } from './patient.entity';
 
 @Entity('anthropometrics')
@@ -36,4 +36,7 @@ export class Anthropometric {
 
   @ManyToOne(() => PatientEntity, (p) => p.medicionesAntropometricas, { onDelete: 'CASCADE' })
   patient!: PatientEntity;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }

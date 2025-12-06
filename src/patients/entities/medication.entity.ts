@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn } from 'typeorm';
 import { PatientEntity } from './patient.entity';
 
 @Entity('medications')
@@ -17,4 +17,7 @@ export class Medication {
 
   @ManyToOne(() => PatientEntity, (p) => p.medicaciones, { onDelete: 'CASCADE' })
   patient!: PatientEntity;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }
