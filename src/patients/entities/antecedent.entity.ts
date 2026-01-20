@@ -6,6 +6,9 @@ export class Antecedent {
   @PrimaryGeneratedColumn()
   id!: number;
 
+  @Column({ length: 150 })
+  tipo!: string;
+
   @Column({ type: 'text' })
   descripcion!: string;
 

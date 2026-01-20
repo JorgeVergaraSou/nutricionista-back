@@ -13,7 +13,7 @@ import { Antecedent } from './antecedent.entity';
 import { Anthropometric } from './anthropometric.entity';
 import { Bioanalysis } from './bioanalysis.entity';
 import { Medication } from './medication.entity';
-
+import { TurnoEntity } from '@/turnos/entities/turno.entity';
 
 
 
@@ -60,6 +60,9 @@ export class PatientEntity {
 
   @OneToMany(() => Anthropometric, (t) => t.patient, { cascade: false })
   medicionesAntropometricas!: Anthropometric[];
+
+  @OneToMany(() => TurnoEntity, (t) => t.paciente)
+turnos: TurnoEntity[];
 
   @CreateDateColumn()
   createdAt!: Date;

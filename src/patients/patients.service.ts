@@ -202,10 +202,16 @@ export class PatientsService {
       );
 
       return { success: true, message: 'Paciente registrado con todos sus datos', data: patient };
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      handleServiceError(error, this.logger, 'createFullPatient', 'Error al registrar paciente completo');
-    } finally {
+    } catch (err) {
+  const error = err as Error;
+
+  console.error("❌ ERROR REAL createFullPatient:", error);
+  console.error("❌ ERROR MESSAGE:", error.message);
+  console.error("❌ ERROR STACK:", error.stack);
+
+  await queryRunner.rollbackTransaction();
+  handleServiceError(error, this.logger, 'createFullPatient', 'Error al registrar paciente completo');
+}finally {
       await queryRunner.release();
     }
   }
@@ -321,10 +327,10 @@ export class PatientsService {
 
   async deleteMedication(id: number) {
     try {
-         const res = await this.medicationRepo.softDelete(id);
-    if (res.affected === 0) throw new NotFoundException('Medicación no encontrada');
-    deleteLogger.info(`Medicación eliminada: ID ${id}`);
-    return { success: true };
+      const res = await this.medicationRepo.softDelete(id);
+      if (res.affected === 0) throw new NotFoundException('Medicación no encontrada');
+      deleteLogger.info(`Medicación eliminada: ID ${id}`);
+      return { success: true };
     } catch (error) {
       handleServiceError(error, this.logger, 'deleteMedication', 'Error al eliminar medicación');
     }
@@ -343,10 +349,10 @@ export class PatientsService {
 
   async deleteBioanalysis(id: number) {
     try {
-          const res = await this.bioRepo.delete(id);
-    if (res.affected === 0) throw new NotFoundException('Análisis bioquímico no encontrado');
-    deleteLogger.info(`Análisis bioquímico eliminado: ID ${id}`);
-    return { success: true };
+      const res = await this.bioRepo.delete(id);
+      if (res.affected === 0) throw new NotFoundException('Análisis bioquímico no encontrado');
+      deleteLogger.info(`Análisis bioquímico eliminado: ID ${id}`);
+      return { success: true };
     } catch (error) {
       handleServiceError(error, this.logger, 'deleteBioanalysis', 'Error al eliminar análisis bioquímico');
     }
