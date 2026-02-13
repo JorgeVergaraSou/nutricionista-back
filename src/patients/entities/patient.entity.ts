@@ -10,10 +10,11 @@ import {
   DeleteDateColumn,
 } from 'typeorm';
 import { Antecedent } from './antecedent.entity';
-import { Anthropometric } from './anthropometric.entity';
+import { AnthropometricEntity } from './anthropometric.entity';
 import { Bioanalysis } from './bioanalysis.entity';
 import { Medication } from './medication.entity';
 import { TurnoEntity } from '@/turnos/entities/turno.entity';
+import { VisitEntity } from '@/visits/entities/visit.entity';
 
 
 
@@ -58,11 +59,16 @@ export class PatientEntity {
   @OneToMany(() => Bioanalysis, (b) => b.patient, { cascade: false })
   analisisBioquimicos!: Bioanalysis[];
 
-  @OneToMany(() => Anthropometric, (t) => t.patient, { cascade: false })
-  medicionesAntropometricas!: Anthropometric[];
+  @OneToMany(() => AnthropometricEntity, (t) => t.patient, { cascade: false })
+  medicionesAntropometricas!: AnthropometricEntity[];
 
   @OneToMany(() => TurnoEntity, (t) => t.paciente)
-turnos: TurnoEntity[];
+
+  @OneToMany(() => VisitEntity, (v) => v.paciente)
+  visitas!: VisitEntity[];
+
+
+  turnos: TurnoEntity[];
 
   @CreateDateColumn()
   createdAt!: Date;

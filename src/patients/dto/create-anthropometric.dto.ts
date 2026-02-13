@@ -1,5 +1,5 @@
 // src/patients/dto/create-anthropometric.dto.ts
-import { IsDateString, IsOptional, IsNumber } from 'class-validator';
+import { IsDateString, IsOptional, IsNumber, IsInt, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateAnthropometricDto {
@@ -45,4 +45,9 @@ export class CreateAnthropometricDto {
   @Transform(({ value }) => (value ? Number(value) : null))
   @IsNumber({}, { message: 'La circunferencia abdominal debe ser un número válido' })
   circAbdominal?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  visitId?: number;
 }

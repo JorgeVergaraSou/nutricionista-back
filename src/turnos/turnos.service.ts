@@ -1,3 +1,4 @@
+// src/turnos/turnos.service.ts
 import {
   ConflictException,
   Injectable,
@@ -51,6 +52,19 @@ export class TurnosService {
       order: { hora: 'ASC' },
     });
   }
+
+  async obtenerPorId(id: number) {
+  const turno = await this.turnoRepo.findOne({
+    where: { id },
+    relations: ['paciente'],
+  });
+
+  if (!turno) {
+    throw new NotFoundException('Turno no encontrado');
+  }
+
+  return turno;
+}
 
   async actualizar(id: number, dto: ActualizarTurnoDto) {
     const turno = await this.turnoRepo.findOne({ where: { id } });

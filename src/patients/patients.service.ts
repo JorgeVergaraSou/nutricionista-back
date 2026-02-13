@@ -13,7 +13,7 @@ import { PatientEntity } from './entities/patient.entity';
 import { Antecedent } from './entities/antecedent.entity';
 import { Medication } from './entities/medication.entity';
 import { Bioanalysis } from './entities/bioanalysis.entity';
-import { Anthropometric } from './entities/anthropometric.entity';
+import { AnthropometricEntity } from './entities/anthropometric.entity';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { CreateAntecedentDto } from './dto/create-antecedent.dto';
@@ -24,6 +24,7 @@ import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { handleServiceError } from '@/common/utils/error-handler.util';
 import { deleteLogger, insertLogger, selectLogger, updateLogger } from '@/config/db-loggers';
 import { CreateFullPatientDto } from './dto/create-full-patient.dto';
+import { VisitEntity } from '@/visits/entities/visit.entity';
 
 @Injectable()
 export class PatientsService {
@@ -40,8 +41,12 @@ export class PatientsService {
     @InjectRepository(Bioanalysis)
     private readonly bioRepo: Repository<Bioanalysis>,
 
-    @InjectRepository(Anthropometric)
-    private readonly anthropometricRepo: Repository<Anthropometric>,
+    @InjectRepository(AnthropometricEntity)
+    private readonly anthropometricRepo: Repository<AnthropometricEntity>,
+
+    @InjectRepository(VisitEntity)
+    private readonly visitRepo: Repository<VisitEntity>,
+
 
     @Inject(WINSTON_MODULE_NEST_PROVIDER)
     private readonly logger: LoggerService,
@@ -186,7 +191,7 @@ export class PatientsService {
 
       if (dto.medicionesAntropometricas?.length) {
         const ants = dto.medicionesAntropometricas.map((a) =>
-          queryRunner.manager.create(Anthropometric, { ...a, patient }),
+          queryRunner.manager.create(AnthropometricEntity, { ...a, patient }),
         );
         await queryRunner.manager.save(ants);
       }
@@ -203,15 +208,15 @@ export class PatientsService {
 
       return { success: true, message: 'Paciente registrado con todos sus datos', data: patient };
     } catch (err) {
-  const error = err as Error;
+      const error = err as Error;
 
-  console.error("❌ ERROR REAL createFullPatient:", error);
-  console.error("❌ ERROR MESSAGE:", error.message);
-  console.error("❌ ERROR STACK:", error.stack);
+      console.error("❌ ERROR REAL createFullPatient:", error);
+      console.error("❌ ERROR MESSAGE:", error.message);
+      console.error("❌ ERROR STACK:", error.stack);
 
-  await queryRunner.rollbackTransaction();
-  handleServiceError(error, this.logger, 'createFullPatient', 'Error al registrar paciente completo');
-}finally {
+      await queryRunner.rollbackTransaction();
+      handleServiceError(error, this.logger, 'createFullPatient', 'Error al registrar paciente completo');
+    } finally {
       await queryRunner.release();
     }
   }
@@ -359,15 +364,43 @@ export class PatientsService {
   }
 
   // --- Anthropometrics ---
-  async createAnthropometric(patientId: number, dto: CreateAnthropometricDto) {
+  async createAnthropometric(
+    patientId: number,
+    dto: CreateAnthropometricDto,
+  ) {
     try {
       const patient = await this.getPatient(patientId);
-      const record = this.anthropometricRepo.create({ ...dto, patient });
+
+      let visit = null;
+
+      if (dto.visitId) {
+        visit = await this.visitRepo.findOne({
+          where: { id: dto.visitId },
+        });
+
+        if (!visit) {
+          throw new NotFoundException('Visita no encontrada');
+        }
+      }
+
+      const record = this.anthropometricRepo.create({
+        ...dto,
+        patient,
+        visita: visit,
+      });
+
       return await this.anthropometricRepo.save(record);
+
     } catch (error) {
-      handleServiceError(error, this.logger, 'createAnthropometric', 'Error al crear antropometría');
+      handleServiceError(
+        error,
+        this.logger,
+        'createAnthropometric',
+        'Error al crear antropometría',
+      );
     }
   }
+
 
   async deleteAnthropometric(id: number) {
     try {

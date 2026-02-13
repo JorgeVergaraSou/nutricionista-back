@@ -29,6 +29,11 @@ export class TurnosController {
     return this.service.buscarPorFecha(query.fecha);
   }
 
+  @Get(':id')
+obtenerPorId(@Param('id') id: number) {
+  return this.service.obtenerPorId(+id);
+}
+
   @Patch(':id')
   actualizar(@Param('id') id: number, @Body() dto: ActualizarTurnoDto) {
     return this.service.actualizar(+id, dto);

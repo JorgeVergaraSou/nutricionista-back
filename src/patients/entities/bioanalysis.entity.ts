@@ -1,6 +1,7 @@
 //src/patients/entities/bioanalysis.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn } from 'typeorm';
 import { PatientEntity } from './patient.entity';
+import { VisitEntity } from '@/visits/entities/visit.entity';
 
 @Entity('bioanalysis')
 export class Bioanalysis {
@@ -18,6 +19,13 @@ export class Bioanalysis {
 
   @ManyToOne(() => PatientEntity, (p) => p.analisisBioquimicos, { onDelete: 'CASCADE' })
   patient!: PatientEntity;
+
+  @ManyToOne(() => VisitEntity, (v) => v.analisisBioquimicos, {
+  nullable: true,
+  onDelete: 'SET NULL',
+})
+visita?: VisitEntity | null;
+
 
   @DeleteDateColumn()
   deletedAt?: Date;

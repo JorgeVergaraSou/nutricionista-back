@@ -1,13 +1,15 @@
+// src/patients/entities/anthropometric.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn } from 'typeorm';
 import { PatientEntity } from './patient.entity';
+import { VisitEntity } from '@/visits/entities/visit.entity';
 
 @Entity('anthropometrics')
-export class Anthropometric {
+export class AnthropometricEntity {
   @PrimaryGeneratedColumn()
   id!: number;
 
   @Column({ type: 'date' })
-  fecha!: string;
+  fecha!: Date;
 
   // Talla en metros (ej. 1.70). Si prefieres cm, documentalo.
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
@@ -36,6 +38,13 @@ export class Anthropometric {
 
   @ManyToOne(() => PatientEntity, (p) => p.medicionesAntropometricas, { onDelete: 'CASCADE' })
   patient!: PatientEntity;
+
+  @ManyToOne(() => VisitEntity, (v) => v.medicionesAntropometricas, {
+  nullable: true,
+  onDelete: 'SET NULL',
+})
+visita?: VisitEntity | null;
+
 
   @DeleteDateColumn()
   deletedAt?: Date;

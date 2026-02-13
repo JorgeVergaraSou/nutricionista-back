@@ -8,6 +8,7 @@ import { winstonConfig } from './config/winston.config';
 import { AppService } from './app.service';
 import { PatientsModule } from './patients/patients.module';
 import { TurnosModule } from './turnos/turnos.module';
+import { VisitsModule } from './visits/visit.module';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -82,6 +83,7 @@ listEntityFiles(entitiesDir);*/
     AuthModule,
     PatientsModule,
     TurnosModule,
+    VisitsModule,
   ],
   controllers: [],
   providers: [AppService],
