@@ -1,4 +1,4 @@
-//src/patients/entities/patient.entity.ts
+// src/patients/entities/patient.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -6,17 +6,13 @@ import {
   OneToMany,
   CreateDateColumn,
   UpdateDateColumn,
-  Index,
   DeleteDateColumn,
+  Index,
 } from 'typeorm';
+
 import { Antecedent } from './antecedent.entity';
-import { AnthropometricEntity } from './anthropometric.entity';
-import { Bioanalysis } from './bioanalysis.entity';
-import { Medication } from './medication.entity';
-import { TurnoEntity } from '@/turnos/entities/turno.entity';
 import { VisitEntity } from '@/visits/entities/visit.entity';
-
-
+import { TurnoEntity } from '@/turnos/entities/turno.entity';
 
 @Entity('patients')
 export class PatientEntity {
@@ -50,25 +46,14 @@ export class PatientEntity {
   actividadFisica!: string;
 
   // Relaciones
-  @OneToMany(() => Antecedent, (a) => a.patient, { cascade: false })
+  @OneToMany(() => Antecedent, (a) => a.patient)
   antecedentes!: Antecedent[];
-
-  @OneToMany(() => Medication, (m) => m.patient, { cascade: false })
-  medicaciones!: Medication[];
-
-  @OneToMany(() => Bioanalysis, (b) => b.patient, { cascade: false })
-  analisisBioquimicos!: Bioanalysis[];
-
-  @OneToMany(() => AnthropometricEntity, (t) => t.patient, { cascade: false })
-  medicionesAntropometricas!: AnthropometricEntity[];
-
-  @OneToMany(() => TurnoEntity, (t) => t.paciente)
 
   @OneToMany(() => VisitEntity, (v) => v.paciente)
   visitas!: VisitEntity[];
 
-
-  turnos: TurnoEntity[];
+  @OneToMany(() => TurnoEntity, (t) => t.paciente)
+  turnos!: TurnoEntity[];
 
   @CreateDateColumn()
   createdAt!: Date;

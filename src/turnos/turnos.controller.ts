@@ -8,6 +8,7 @@ import {
   Param,
   Delete,
   Query,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { TurnosService } from './turnos.service';
 
@@ -17,30 +18,42 @@ import { ActualizarTurnoDto } from './dto/update-turno.dto';
 
 @Controller('turnos')
 export class TurnosController {
-  constructor(private readonly service: TurnosService) {}
+  constructor(private readonly service: TurnosService) { }
 
-  @Post()
+  @Post('dar_turno')
   crear(@Body() dto: CrearTurnoDto) {
     return this.service.crear(dto);
   }
 
-  @Get()
+  @Get('turnos_por_fecha')
   buscarPorFecha(@Query() query: ConsultarTurnosDto) {
     return this.service.buscarPorFecha(query.fecha);
   }
 
-  @Get(':id')
-obtenerPorId(@Param('id') id: number) {
-  return this.service.obtenerPorId(+id);
-}
+  @Get('turno_por_id/:id')
+  obtenerPorId(@Param('id') id: number) {
+    return this.service.obtenerPorId(id);
+  }
 
-  @Patch(':id')
+  @Patch('actualizar_turno/:id')
   actualizar(@Param('id') id: number, @Body() dto: ActualizarTurnoDto) {
-    return this.service.actualizar(+id, dto);
+    return this.service.actualizar(id, dto);
   }
 
-  @Delete(':id')
+  @Delete('eliminar_turno/:id')
   eliminar(@Param('id') id: number) {
-    return this.service.eliminar(+id);
+    return this.service.eliminar(id);
   }
+
+  @Patch('/no-asistio/:id')
+  marcarNoAsistio(@Param('id', ParseIntPipe) id: number) {
+    return this.service.marcarNoAsistio(id);
+  }
+@Get('historial')
+obtenerHistorial(
+  @Query('desde') desde?: string,
+  @Query('hasta') hasta?: string,
+) {
+  return this.service.obtenerHistorial(desde, hasta);
+}
 }

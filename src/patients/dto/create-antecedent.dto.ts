@@ -1,10 +1,19 @@
-import { IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsDateString } from 'class-validator';
+import { AntecedentType } from '@/common/enums/antecedentes.enum';
 
 export class CreateAntecedentDto {
 
-  @IsString()
-  tipo!: string;
+  @IsEnum(AntecedentType)
+  tipo!: AntecedentType;
 
   @IsString()
-  descripcion!: string;
+  titulo!: string;
+
+  @IsOptional()
+  @IsString()
+  detalle?: string;
+
+  @IsOptional()
+  @IsDateString()
+  fechaEvento?: Date;
 }

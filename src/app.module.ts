@@ -9,8 +9,11 @@ import { AppService } from './app.service';
 import { PatientsModule } from './patients/patients.module';
 import { TurnosModule } from './turnos/turnos.module';
 import { VisitsModule } from './visits/visit.module';
+import { PatientFilesModule } from './patient-files/patient-files.module';
 import * as path from 'path';
 import * as fs from 'fs';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 // Verificar todas las entidades .ts o .js que TypeORM podría estar cargando
 const entitiesPath = path.join(__dirname, '/**/*.entity{.ts,.js}');
@@ -39,20 +42,23 @@ listEntityFiles(entitiesDir);*/
 
     WinstonModule.forRoot(winstonConfig),
 
-    
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'uploads'),
+      serveRoot: '/nutri/uploads',
+    }),
 
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService): Promise<TypeOrmModuleOptions> => {
-       /* console.log('🔧 Variables de entorno leídas desde .env:');
-        console.log({
-          DB_TYPE: configService.get('DB_TYPE'),
-          DB_HOST: configService.get('DB_HOST'),
-          DB_PORT: configService.get('DB_PORT'),
-          DB_USERNAME: configService.get('DB_USERNAME'),
-          DB_PASSWORD: configService.get('DB_PASSWORD'),
-          DB_NAME: configService.get('DB_NAME'),
-        });*/
+        /* console.log('🔧 Variables de entorno leídas desde .env:');
+         console.log({
+           DB_TYPE: configService.get('DB_TYPE'),
+           DB_HOST: configService.get('DB_HOST'),
+           DB_PORT: configService.get('DB_PORT'),
+           DB_USERNAME: configService.get('DB_USERNAME'),
+           DB_PASSWORD: configService.get('DB_PASSWORD'),
+           DB_NAME: configService.get('DB_NAME'),
+         });*/
 
         const ormConfig: TypeOrmModuleOptions = {
           type: 'mysql' as const, // ✅ Tipo literal compatible
@@ -64,16 +70,17 @@ listEntityFiles(entitiesDir);*/
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
 
           synchronize: true,
-          //logging: true,
-          //logger: 'advanced-console',
+          // logging: ['query', 'error'],
+         // logging: true,
+         // logger: 'advanced-console',
           timezone: '-03:00',
           dateStrings: ['DATE'],
           retryAttempts: 1, // 👈 solo 1 intento para ver el error real
           retryDelay: 2000,
         };
 
-       /* console.log('⚙️ Configuración que se enviará a TypeORM:');
-        console.log(ormConfig);*/
+        /* console.log('⚙️ Configuración que se enviará a TypeORM:');
+         console.log(ormConfig);*/
 
         return ormConfig;
       },
@@ -84,6 +91,7 @@ listEntityFiles(entitiesDir);*/
     PatientsModule,
     TurnosModule,
     VisitsModule,
+    PatientFilesModule,
   ],
   controllers: [],
   providers: [AppService],

@@ -11,13 +11,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, ILike } from 'typeorm';
 import { PatientEntity } from './entities/patient.entity';
 import { Antecedent } from './entities/antecedent.entity';
-import { Medication } from './entities/medication.entity';
 import { Bioanalysis } from './entities/bioanalysis.entity';
 import { AnthropometricEntity } from './entities/anthropometric.entity';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { CreateAntecedentDto } from './dto/create-antecedent.dto';
-import { CreateMedicationDto } from './dto/create-medication.dto';
 import { CreateBioanalysisDto } from './dto/create-bioanalysis.dto';
 import { CreateAnthropometricDto } from './dto/create-anthropometric.dto';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
@@ -25,6 +23,13 @@ import { handleServiceError } from '@/common/utils/error-handler.util';
 import { deleteLogger, insertLogger, selectLogger, updateLogger } from '@/config/db-loggers';
 import { CreateFullPatientDto } from './dto/create-full-patient.dto';
 import { VisitEntity } from '@/visits/entities/visit.entity';
+
+
+import { PrescriptionEntity } from './entities/prescription.entity';
+import { PatientFileEntity } from '@/patient-files/entities/patient-file.entity';
+import { ClinicalHistoryItemDto } from './dto/clinical-history.dto';
+import { BioanalysisItem } from './entities/bioanalysis-item.entity';
+import { EstadoAnalisis } from '@/common/enums/estado_analisis';
 
 @Injectable()
 export class PatientsService {
@@ -35,9 +40,6 @@ export class PatientsService {
     @InjectRepository(Antecedent)
     private readonly antecedentRepo: Repository<Antecedent>,
 
-    @InjectRepository(Medication)
-    private readonly medicationRepo: Repository<Medication>,
-
     @InjectRepository(Bioanalysis)
     private readonly bioRepo: Repository<Bioanalysis>,
 
@@ -46,6 +48,19 @@ export class PatientsService {
 
     @InjectRepository(VisitEntity)
     private readonly visitRepo: Repository<VisitEntity>,
+
+    @InjectRepository(PatientEntity)
+    private patientRepo: Repository<PatientEntity>,
+
+    @InjectRepository(BioanalysisItem)
+    private bioItemRepo: Repository<BioanalysisItem>,
+
+
+    @InjectRepository(PrescriptionEntity)
+    private prescriptionRepo: Repository<PrescriptionEntity>,
+
+    @InjectRepository(PatientFileEntity)
+    private fileRepo: Repository<PatientFileEntity>,
 
 
     @Inject(WINSTON_MODULE_NEST_PROVIDER)
@@ -80,31 +95,39 @@ export class PatientsService {
   }
 
   // 🔍 Obtener paciente (devuelve entidad)
+
   async getPatient(id: number): Promise<PatientEntity> {
     try {
       const patient = await this.patientsRepo.findOne({
         where: { id },
         relations: [
           'antecedentes',
-          'medicaciones',
-          'analisisBioquimicos',
-          'medicionesAntropometricas',
+          'visitas',
+          'visitas.medicionesAntropometricas',
+          'visitas.analisisBioquimicos',
+          'visitas.prescripciones',
+          'visitas.files',
+          'visitas.turno',
+          'turnos',
         ],
+        order: {
+          visitas: {
+            id: 'DESC',
+          },
+        },
       });
 
-      if (!patient) throw new NotFoundException('Paciente no encontrado');
-
-      selectLogger.info(
-        `Paciente consultado: ${JSON.stringify({
-          id: patient.id,
-          nombre: patient.nombre,
-          dni: patient.dni,
-        })}`,
-      );
+      if (!patient)
+        throw new NotFoundException('Paciente no encontrado');
 
       return patient;
     } catch (error) {
-      handleServiceError(error, this.logger, 'getPatient', 'Ocurrió un error al obtener el paciente');
+      handleServiceError(
+        error,
+        this.logger,
+        'getPatient',
+        'Ocurrió un error al obtener el paciente',
+      );
     }
   }
 
@@ -128,7 +151,7 @@ export class PatientsService {
           { apellido: ILike(`%${term}%`) },
           { dni: ILike(`%${term}%`) },
         ],
-        select: ['id', 'nombre', 'dni'],
+        select: ['id', 'nombre', 'apellido', 'dni'],
         order: { nombre: 'ASC' },
         take: limit,
         skip,
@@ -151,76 +174,286 @@ export class PatientsService {
     }
   }
 
+  //AUTOCOMPLETE FIN
 
+  /** CREAR PACIENTE */
   async createFullPatient(dto: CreateFullPatientDto) {
-    const queryRunner = this.patientsRepo.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.patientsRepo.manager.connection.createQueryRunner();
+
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // 1️⃣ Crear paciente
+      /* 1️⃣ Validar DNI */
       const exists = await queryRunner.manager.findOne(PatientEntity, {
         where: { dni: dto.dni },
       });
-      if (exists) throw new HttpException('DNI ya registrado', HttpStatus.CONFLICT);
 
-      const patient = queryRunner.manager.create(PatientEntity, dto);
+      if (exists) {
+        throw new HttpException(
+          'DNI ya registrado',
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      /* 2️⃣ Crear paciente */
+      const patient = queryRunner.manager.create(PatientEntity, {
+        nombre: dto.nombre,
+        apellido: dto.apellido,
+        dni: dto.dni,
+        fechaNacimiento: dto.fechaNacimiento,
+        direccion: dto.direccion,
+        telefono: dto.telefono,
+        email: dto.email,
+        actividadFisica: dto.actividadFisica,
+      });
+
       await queryRunner.manager.save(patient);
 
-      // 2️⃣ Crear relaciones si existen
+      /* 3️⃣ Relaciones directas al paciente */
+
       if (dto.antecedentes?.length) {
         const antecedents = dto.antecedentes.map((a) =>
-          queryRunner.manager.create(Antecedent, { ...a, patient }),
+          queryRunner.manager.create(Antecedent, {
+            ...a,
+            patient,
+          }),
         );
         await queryRunner.manager.save(antecedents);
       }
 
-      if (dto.medicaciones?.length) {
-        const meds = dto.medicaciones.map((m) =>
-          queryRunner.manager.create(Medication, { ...m, patient }),
-        );
-        await queryRunner.manager.save(meds);
-      }
-
       if (dto.analisisBioquimicos?.length) {
         const bios = dto.analisisBioquimicos.map((b) =>
-          queryRunner.manager.create(Bioanalysis, { ...b, patient }),
+          queryRunner.manager.create(Bioanalysis, {
+            ...b,
+            patient,
+          }),
         );
         await queryRunner.manager.save(bios);
       }
 
       if (dto.medicionesAntropometricas?.length) {
         const ants = dto.medicionesAntropometricas.map((a) =>
-          queryRunner.manager.create(AnthropometricEntity, { ...a, patient }),
+          queryRunner.manager.create(AnthropometricEntity, {
+            ...a,
+            patient,
+          }),
         );
         await queryRunner.manager.save(ants);
       }
 
+      /* 4️⃣ VISITAS (NUEVO 🔥) */
+
+      if (dto.visitas?.length) {
+        for (const visitaDto of dto.visitas) {
+          const visit = queryRunner.manager.create(VisitEntity, {
+            motivoConsulta: visitaDto.motivoConsulta ?? null,
+            enfermedadActual: visitaDto.enfermedadActual ?? null,
+            examenFisico: visitaDto.examenFisico ?? null,
+            diagnostico: visitaDto.diagnostico ?? null,
+            planTratamiento: visitaDto.planTratamiento ?? null,
+            evolucion: visitaDto.evolucion ?? null,
+            observaciones: visitaDto.observaciones ?? null,
+            paciente: patient,
+          });
+
+          const savedVisit = await queryRunner.manager.save(visit);
+
+          /* Antropometría asociada a visita */
+          if (visitaDto.medicionesAntropometricas?.length) {
+            const ants = visitaDto.medicionesAntropometricas.map(
+              (a) =>
+                queryRunner.manager.create(
+                  AnthropometricEntity,
+                  {
+                    ...a,
+                    visita: savedVisit,
+                    patient,
+                  },
+                ),
+            );
+            await queryRunner.manager.save(ants);
+          }
+
+          /* Bioanálisis asociado a visita */
+          if (visitaDto.analisisBioquimicos?.length) {
+            const bios = visitaDto.analisisBioquimicos.map(
+              (b) =>
+                queryRunner.manager.create(Bioanalysis, {
+                  ...b,
+                  visita: savedVisit,
+                  patient,
+                }),
+            );
+            await queryRunner.manager.save(bios);
+          }
+        }
+      }
+
       await queryRunner.commitTransaction();
 
-      insertLogger.info(
-        `Paciente completo creado: ${JSON.stringify({
-          id: patient.id,
-          nombre: patient.nombre,
-          dni: patient.dni,
-        })}`,
-      );
-
-      return { success: true, message: 'Paciente registrado con todos sus datos', data: patient };
-    } catch (err) {
-      const error = err as Error;
-
-      console.error("❌ ERROR REAL createFullPatient:", error);
-      console.error("❌ ERROR MESSAGE:", error.message);
-      console.error("❌ ERROR STACK:", error.stack);
-
+      return {
+        success: true,
+        message:
+          'Paciente registrado correctamente con sus datos y visitas',
+        data: patient,
+      };
+    } catch (error) {
       await queryRunner.rollbackTransaction();
-      handleServiceError(error, this.logger, 'createFullPatient', 'Error al registrar paciente completo');
+      throw error;
     } finally {
       await queryRunner.release();
     }
   }
+  /** FIN CREAR PACIENTE */
 
+  /** HISTORIA CLINICA */
+  async getClinicalHistory(
+    patientId: number,
+  ): Promise<ClinicalHistoryItemDto[]> {
+
+    const patient = await this.patientRepo.findOne({
+      where: { id: patientId },
+    });
+
+    if (!patient) {
+      throw new NotFoundException('Paciente no encontrado');
+    }
+
+    const visits = await this.visitRepo.find({
+      where: { paciente: { id: patientId } },
+      relations: [
+        'turno',
+        'medicionesAntropometricas',
+        'analisisBioquimicos',
+        'prescripciones',
+        'files',
+      ],
+      order: {
+        fecha: 'DESC',
+      },
+    });
+
+    const history: ClinicalHistoryItemDto[] = [];
+
+    for (const v of visits) {
+      // -----------------------
+      // VISITA
+      // -----------------------
+
+      history.push({
+        fecha: v.fecha,
+        tipo: 'VISITA',
+        data: {
+          id: v.id,
+          motivoConsulta: v.motivoConsulta,
+          diagnostico: v.diagnostico,
+          planTratamiento: v.planTratamiento,
+          evolucion: v.evolucion,
+          observaciones: v.observaciones,
+          turno: v.turno
+            ? {
+              fecha: v.turno.fecha,
+              hora: v.turno.hora,
+            }
+            : null,
+        },
+      });
+
+      // -----------------------
+      // ANTROPOMETRIA
+      // -----------------------
+
+      v.medicionesAntropometricas?.forEach((a) => {
+        if (!a.fecha) return;
+
+        history.push({
+          fecha: a.fecha,
+          tipo: 'ANTROPOMETRIA',
+          data: {
+            peso: a.peso,
+            talla: a.talla,
+            imc: a.imc,
+            circAbdominal: a.circAbdominal,
+            porcentajeGrasa: a.porcentajeGrasa,
+            porcentajeGrasaABD: a.porcentajeGrasaABD,
+            porcentajeMusculo: a.porcentajeMusculo,
+            kcalBasales: a.kcalBasales,
+          },
+        });
+      });
+
+      // -----------------------
+      // ANALISIS
+      // -----------------------
+
+      v.analisisBioquimicos?.forEach((a) => {
+        if (!a.fecha) return;
+
+        history.push({
+          fecha: new Date(a.fecha),
+          tipo: 'ANALISIS',
+          data: {
+            tipo: a.tipo,
+            resultados: a.resultados,
+            items: a.items ?? [], // 🔥 CLAVE
+          },
+        });
+      });
+
+      // -----------------------
+      // PRESCRIPCIONES
+      // -----------------------
+
+      v.prescripciones?.forEach((p) => {
+        if (!p.fechaInicio) return;
+
+        history.push({
+          fecha: p.fechaInicio,
+          tipo: 'PRESCRIPCION',
+          data: {
+            medicamento: p.medicamento,
+            dosis: p.dosis,
+            intervalo: p.intervalo,
+            activa: p.activa,
+            fechaFin: p.fechaFin,
+          },
+        });
+      });
+
+      // -----------------------
+      // ARCHIVOS
+      // -----------------------
+
+      v.files?.forEach((f) => {
+        history.push({
+          fecha: f.uploadedAt,
+          tipo: 'ARCHIVO',
+          data: {
+            nombre: f.originalName,
+            path: f.storagePath.replace(/^\.?\/?uploads\//, ''), // 🔥 opcional pero recomendado
+            mimeType: f.mimeType, // 🔥 CLAVE
+            size: f.size,
+          },
+        });
+      });
+    }
+
+    // -----------------------
+    // ORDEN GLOBAL
+    // -----------------------
+
+    history.sort(
+      (a, b) =>
+        new Date(b.fecha).getTime() -
+        new Date(a.fecha).getTime(),
+    );
+    console.log('Historia clínica generada para paciente ID', patientId, history);
+    return history;
+  }
+
+  /** FIN HISTORIA CLINICA */
 
   // 🔎 Buscar pacientes con paginación
   async searchPatients(query: string, page = 1, limit = 10) {
@@ -286,69 +519,129 @@ export class PatientsService {
   async createAntecedent(patientId: number, dto: CreateAntecedentDto) {
     try {
       const patient = await this.getPatient(patientId);
-      const antecedent = this.antecedentRepo.create({ ...dto, patient });
+
+      const antecedent = this.antecedentRepo.create({
+        ...dto,
+        activo: true,
+        patient,
+      });
+
+      const saved = await this.antecedentRepo.save(antecedent);
 
       insertLogger.info(
-        `Antecedente creado para paciente ID ${patientId}: ${JSON.stringify({
+        `Antecedente creado para paciente ${patientId}: ${JSON.stringify({
           tipo: dto.tipo,
-          descripcion: dto.descripcion,
+          titulo: dto.titulo,
+          fechaEvento: dto.fechaEvento,
         })}`,
-      )
-      return await this.antecedentRepo.save(antecedent);
+      );
+
+      return {
+        success: true,
+        message: 'Antecedente registrado correctamente',
+        data: saved,
+      };
+
     } catch (error) {
-      handleServiceError(error, this.logger, 'createAntecedent', 'Error al crear antecedente');
+      handleServiceError(
+        error,
+        this.logger,
+        'createAntecedent',
+        'Error al crear antecedente',
+      );
     }
   }
 
   async deleteAntecedent(id: number) {
     try {
-      const res = await this.antecedentRepo.delete(id);
-      if (res.affected === 0) throw new NotFoundException('Antecedente no encontrado');
-      deleteLogger.info(`Antecedente eliminado: ID ${id}`);
-      return { success: true };
-    } catch (error) {
-      handleServiceError(error, this.logger, 'deleteAntecedent', 'Error al eliminar antecedente');
-    }
-  }
+      const antecedent = await this.antecedentRepo.findOne({
+        where: { id },
+      });
 
-  // --- Medications ---
-  async createMedication(patientId: number, dto: CreateMedicationDto) {
-    try {
-      const patient = await this.getPatient(patientId);
-      const medication = this.medicationRepo.create({ ...dto, patient });
-      insertLogger.info(
-        `Medicación creada para paciente ID ${patientId}: ${JSON.stringify({
-          nombre: dto.nombre,
-          dosis: dto.dosis,
-          frecuencia: dto.frecuencia,
-          detalles: dto.detalles,
-        })}`,
+      if (!antecedent) {
+        throw new NotFoundException('Antecedente no encontrado');
+      }
+
+      antecedent.activo = false;
+
+      await this.antecedentRepo.save(antecedent);
+
+      deleteLogger.info(`Antecedente desactivado: ID ${id}`);
+
+      return {
+        success: true,
+        message: 'Antecedente marcado como inactivo',
+      };
+
+    } catch (error) {
+      handleServiceError(
+        error,
+        this.logger,
+        'deleteAntecedent',
+        'Error al desactivar antecedente',
       );
-      return await this.medicationRepo.save(medication);
-    } catch (error) {
-      handleServiceError(error, this.logger, 'createMedication', 'Error al crear medicación');
     }
   }
 
-  async deleteMedication(id: number) {
-    try {
-      const res = await this.medicationRepo.softDelete(id);
-      if (res.affected === 0) throw new NotFoundException('Medicación no encontrada');
-      deleteLogger.info(`Medicación eliminada: ID ${id}`);
-      return { success: true };
-    } catch (error) {
-      handleServiceError(error, this.logger, 'deleteMedication', 'Error al eliminar medicación');
-    }
-  }
+
+
+
 
   // --- Bioanalysis ---
   async createBioanalysis(patientId: number, dto: CreateBioanalysisDto) {
     try {
       const patient = await this.getPatient(patientId);
-      const bio = this.bioRepo.create({ ...dto, patient });
-      return await this.bioRepo.save(bio);
+
+      // ✅ crear entidad manual (PRO)
+      const bio = new Bioanalysis();
+      bio.tipo = dto.tipo;
+      bio.resultados = dto.resultados ?? null;
+      bio.fecha = dto.fecha ? new Date(dto.fecha) : null;
+      bio.patient = patient;
+
+      const savedBio = await this.bioRepo.save(bio);
+
+      // 🔥 ITEMS PRO (sin create())
+      if (dto.items && dto.items.length > 0) {
+        const items: BioanalysisItem[] = dto.items.map((i) => {
+          let estado: EstadoAnalisis = EstadoAnalisis.SIN_REFERENCIA;
+
+          if (
+            i.valor !== undefined &&
+            i.valorMin !== undefined &&
+            i.valorMax !== undefined
+          ) {
+            if (i.valor < i.valorMin) estado = EstadoAnalisis.BAJO;
+            else if (i.valor > i.valorMax) estado = EstadoAnalisis.ALTO;
+            else estado = EstadoAnalisis.NORMAL;
+          }
+
+          const item = new BioanalysisItem();
+          item.nombre = i.nombre;
+          item.valor = i.valor ?? null;
+          item.unidad = i.unidad ?? null;
+          item.valorMin = i.valorMin ?? null;
+          item.valorMax = i.valorMax ?? null;
+          item.estado = estado;
+          item.analysis = savedBio;
+
+          return item;
+        });
+
+        await this.bioItemRepo.save(items);
+      }
+
+      return await this.bioRepo.findOne({
+        where: { id: savedBio.id },
+        relations: ['items'],
+      });
     } catch (error) {
-      handleServiceError(error, this.logger, 'createBioanalysis', 'Error al crear análisis bioquímico');
+      handleServiceError(
+        error,
+        this.logger,
+        'createBioanalysis',
+        'Error al crear análisis bioquímico',
+      );
     }
   }
 

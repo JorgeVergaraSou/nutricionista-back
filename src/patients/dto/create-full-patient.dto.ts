@@ -2,10 +2,10 @@
 import { Type } from 'class-transformer';
 import { ValidateNested, IsString, IsOptional, IsDateString, IsArray } from 'class-validator';
 import { CreateAntecedentDto } from './create-antecedent.dto';
-import { CreateMedicationDto } from './create-medication.dto';
 import { CreateBioanalysisDto } from './create-bioanalysis.dto';
 import { CreateAnthropometricDto } from './create-anthropometric.dto';
 import { Transform } from 'class-transformer';
+import { CreateVisitInsideFullDto } from './create-visit-inside-full.dto';
 
 export class CreateFullPatientDto {
   @IsString()
@@ -59,18 +59,21 @@ export class CreateFullPatientDto {
   @Type(() => CreateAntecedentDto)
   antecedentes?: CreateAntecedentDto[];
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateMedicationDto)
-  medicaciones?: CreateMedicationDto[];
+@IsOptional()
+@IsArray()
+@ValidateNested({ each: true })
+@Type(() => CreateBioanalysisDto)
+analisisBioquimicos?: CreateBioanalysisDto[];
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateBioanalysisDto)
-  analisisBioquimicos?: CreateBioanalysisDto[];
+@IsOptional()
+@IsArray()
+@ValidateNested({ each: true })
+@Type(() => CreateAnthropometricDto)
+medicionesAntropometricas?: CreateAnthropometricDto[];
 
+    @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => CreateAnthropometricDto)
-  medicionesAntropometricas?: CreateAnthropometricDto[];
+  @Type(() => CreateVisitInsideFullDto)
+  visitas?: CreateVisitInsideFullDto[];
 }

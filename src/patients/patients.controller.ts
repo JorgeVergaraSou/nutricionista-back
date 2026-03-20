@@ -15,7 +15,6 @@ import { PatientsService } from './patients.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { CreateAntecedentDto } from './dto/create-antecedent.dto';
-import { CreateMedicationDto } from './dto/create-medication.dto';
 import { CreateBioanalysisDto } from './dto/create-bioanalysis.dto';
 import { CreateAnthropometricDto } from './dto/create-anthropometric.dto';
 import { CreateFullPatientDto } from './dto/create-full-patient.dto';
@@ -25,10 +24,7 @@ export class PatientsController {
   constructor(private readonly svc: PatientsService) { }
 
   // --- Pacientes ---
-  @Post()
-  create(@Body() dto: CreatePatientDto) {
-    return this.svc.createPatient(dto);
-  }
+
 
   @Post('registro-completo')
   createFull(@Body() dto: CreateFullPatientDto) {
@@ -53,9 +49,17 @@ export class PatientsController {
     return this.svc.searchPatients(q || '', Number(page), Number(limit));
   }
 
-  @Get('traerPaciente/:id')
+  @Get('perfil/:id')
   get(@Param('id', ParseIntPipe) id: number) {
     return this.svc.getPatient(id);
+  }
+
+  @Get(':id/clinical-history')
+  getClinicalHistory(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    console.log('Generando historia clínica para paciente ID', id);
+    return this.svc.getClinicalHistory(id);
   }
 
   @Put(':id')
@@ -79,16 +83,6 @@ export class PatientsController {
     return this.svc.deleteAntecedent(aid);
   }
 
-  // --- Medicaciones ---
-  @Post(':id/medications')
-  createMedication(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateMedicationDto) {
-    return this.svc.createMedication(id, dto);
-  }
-
-  @Delete('medications/:mid')
-  deleteMedication(@Param('mid', ParseIntPipe) mid: number) {
-    return this.svc.deleteMedication(mid);
-  }
 
   // --- Análisis bioquímicos ---
   @Post(':id/bioanalysis')

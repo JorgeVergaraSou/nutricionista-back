@@ -1,3 +1,4 @@
+//src/turnos/entities/turno.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -6,22 +7,24 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  OneToOne,
 } from 'typeorm';
+
 import { PatientEntity } from '@/patients/entities/patient.entity';
 import { EstadoTurno } from '@/common/enums/estado-turno.enum';
-
+import { VisitEntity } from '@/visits/entities/visit.entity';
 
 @Entity('turnos')
-@Index(['fecha', 'hora'], { unique: true }) // evita doble turno en mismo horario
+@Index(['fecha', 'hora'], { unique: true })
 export class TurnoEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column({ type: 'date' })
-  fecha: string; // YYYY-MM-DD
+  fecha: string;
 
   @Column({ type: 'time' })
-  hora: string; // HH:mm
+  hora: string;
 
   @Column({
     type: 'enum',
@@ -38,6 +41,12 @@ export class TurnoEntity {
     eager: true,
   })
   paciente: PatientEntity;
+
+  
+
+  // 🔐 Relación inversa con visita
+  @OneToOne(() => VisitEntity, (v) => v.turno)
+  visita?: VisitEntity;
 
   @CreateDateColumn()
   creadoEn: Date;

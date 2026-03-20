@@ -1,15 +1,17 @@
 // src/turnos/turnos.service.ts
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { TurnoEntity } from './entities/turno.entity';
 import { PatientEntity } from '@/patients/entities/patient.entity';
 import { CrearTurnoDto } from './dto/create-turno.dto';
 import { ActualizarTurnoDto } from './dto/update-turno.dto';
+import { EstadoTurno } from '@/common/enums/estado-turno.enum';
 
 @Injectable()
 export class TurnosService {
@@ -19,7 +21,7 @@ export class TurnosService {
 
     @InjectRepository(PatientEntity)
     private readonly pacienteRepo: Repository<PatientEntity>,
-  ) {}
+  ) { }
 
   async crear(dto: CrearTurnoDto) {
     const paciente = await this.pacienteRepo.findOne({
@@ -48,23 +50,26 @@ export class TurnosService {
 
   async buscarPorFecha(fecha: string) {
     return this.turnoRepo.find({
-      where: { fecha },
+      where: [
+        { fecha, estado: EstadoTurno.PENDIENTE },
+        { fecha, estado: EstadoTurno.CONFIRMADO },
+      ],
       order: { hora: 'ASC' },
     });
   }
 
   async obtenerPorId(id: number) {
-  const turno = await this.turnoRepo.findOne({
-    where: { id },
-    relations: ['paciente'],
-  });
+    const turno = await this.turnoRepo.findOne({
+      where: { id },
+      relations: ['paciente'],
+    });
 
-  if (!turno) {
-    throw new NotFoundException('Turno no encontrado');
+    if (!turno) {
+      throw new NotFoundException('Turno no encontrado');
+    }
+
+    return turno;
   }
-
-  return turno;
-}
 
   async actualizar(id: number, dto: ActualizarTurnoDto) {
     const turno = await this.turnoRepo.findOne({ where: { id } });
@@ -97,4 +102,56 @@ export class TurnosService {
     await this.turnoRepo.remove(turno);
     return { success: true };
   }
+
+  async marcarNoAsistio(id: number) {
+    const turno = await this.turnoRepo.findOne({
+      where: { id },
+    });
+
+    if (!turno) {
+      throw new NotFoundException('Turno no encontrado');
+    }
+
+    if (turno.estado === EstadoTurno.ATENDIDO) {
+      throw new BadRequestException(
+        'No se puede marcar como no asistido un turno ya atendido',
+      );
+    }
+
+    turno.estado = EstadoTurno.NO_ASISTIO;
+
+    return this.turnoRepo.save(turno);
+  }
+
+ async obtenerHistorial(
+  desde?: string,
+  hasta?: string,
+) {
+  try {
+    const where: any = {};
+
+    // 🔹 Filtro dinámico por fechas
+    if (desde && hasta) {
+      where.fecha = Between(desde, hasta);
+    } else if (desde) {
+      where.fecha = MoreThanOrEqual(desde);
+    } else if (hasta) {
+      where.fecha = LessThanOrEqual(hasta);
+    }
+
+    return await this.turnoRepo.find({
+      where,
+      relations: ['paciente'], // 👈 trae nombre y apellido
+      order: {
+        fecha: 'DESC',
+        hora: 'DESC',
+      },
+    });
+
+  } catch (error) {
+    console.error('🔥 ERROR obtenerHistorial:', error);
+    throw error;
+  }
+}
+
 }

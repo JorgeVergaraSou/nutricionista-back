@@ -1,19 +1,46 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  DeleteDateColumn,
+  CreateDateColumn,
+} from 'typeorm';
+
 import { PatientEntity } from './patient.entity';
+import { AntecedentType } from '@/common/enums/antecedentes.enum';
 
 @Entity('antecedents')
 export class Antecedent {
+
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ length: 150 })
-  tipo!: string;
+  @Column({
+    type: 'enum',
+    enum: AntecedentType,
+  })
+  tipo!: AntecedentType;
 
-  @Column({ type: 'text' })
-  descripcion!: string;
+  @Column({ length: 200 })
+  titulo!: string;
 
-  @ManyToOne(() => PatientEntity, (p) => p.antecedentes, { onDelete: 'CASCADE' })
+  @Column({ type: 'text', nullable: true })
+  detalle?: string;
+
+  @Column({ type: 'date', nullable: true })
+  fechaEvento?: Date;
+
+  @Column({ default: true })
+  activo!: boolean;
+
+  @ManyToOne(() => PatientEntity, (p) => p.antecedentes, {
+    onDelete: 'CASCADE',
+  })
   patient!: PatientEntity;
+
+  @CreateDateColumn()
+  createdAt!: Date;
 
   @DeleteDateColumn()
   deletedAt?: Date;

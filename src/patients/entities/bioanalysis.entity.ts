@@ -1,5 +1,13 @@
-//src/patients/entities/bioanalysis.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn } from 'typeorm';
+// src/patients/entities/bioanalysis.entity.ts
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  DeleteDateColumn,
+} from 'typeorm';
+import { OneToMany } from 'typeorm';
+import { BioanalysisItem } from './bioanalysis-item.entity';
 import { PatientEntity } from './patient.entity';
 import { VisitEntity } from '@/visits/entities/visit.entity';
 
@@ -9,23 +17,28 @@ export class Bioanalysis {
   id!: number;
 
   @Column({ length: 150 })
-  tipo!: string; // ej. "Hemograma", "Glucemia", etc.
+  tipo!: string;
 
-  @Column({ type: 'text' })
-  resultados!: string;
+@Column({ type: 'text', nullable: true })
+resultados!: string | null;
 
   @Column({ type: 'date', nullable: true })
-  fecha!: string | null;
+  fecha!: Date | null;
 
-  @ManyToOne(() => PatientEntity, (p) => p.analisisBioquimicos, { onDelete: 'CASCADE' })
+  @OneToMany(() => BioanalysisItem, (item) => item.analysis, {
+    cascade: true,
+  })
+  items!: BioanalysisItem[];
+
+  @ManyToOne(() => PatientEntity, {
+    onDelete: 'CASCADE',
+  })
   patient!: PatientEntity;
 
   @ManyToOne(() => VisitEntity, (v) => v.analisisBioquimicos, {
-  nullable: true,
-  onDelete: 'SET NULL',
-})
-visita?: VisitEntity | null;
-
+    onDelete: 'CASCADE',
+  })
+  visita!: VisitEntity;
 
   @DeleteDateColumn()
   deletedAt?: Date;

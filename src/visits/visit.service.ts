@@ -4,90 +4,61 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
+import * as fs from 'fs';
+
+// ENTITIES
 import { VisitEntity } from './entities/visit.entity';
 import { PatientEntity } from '@/patients/entities/patient.entity';
 import { TurnoEntity } from '@/turnos/entities/turno.entity';
-
-import { CreateVisitDto } from './dto/create-visit.dto';
-import { UpdateVisitDto } from './dto/update-visit.dto';
 import { AnthropometricEntity } from '@/patients/entities/anthropometric.entity';
+import { PatientFileEntity } from '@/patient-files/entities/patient-file.entity';
+import { PrescriptionEntity } from '@/patients/entities/prescription.entity';
+import { Bioanalysis } from '@/patients/entities/bioanalysis.entity';
+import { BioanalysisItem } from '@/patients/entities/bioanalysis-item.entity';
+
+// ENUMS
+import { EstadoTurno } from '@/common/enums/estado-turno.enum';
+import { EstadoAnalisis } from '@/common/enums/estado_analisis';
+
+// DTOs
+import { UpdateVisitDto } from './dto/update-visit.dto';
 import { CreateFullVisitDto } from './dto/create-full-visit.dto';
+import { VisitResponseDto } from './dto/visit-response.dto';
 
 @Injectable()
 export class VisitsService {
   constructor(
-    @InjectRepository(VisitEntity)
-    private readonly visitRepo: Repository<VisitEntity>,
+  @InjectRepository(VisitEntity)
+  private readonly visitRepo: Repository<VisitEntity>,
 
-    @InjectRepository(PatientEntity)
-    private readonly patientRepo: Repository<PatientEntity>,
+  @InjectRepository(PatientEntity)
+  private readonly patientRepo: Repository<PatientEntity>,
 
-    @InjectRepository(TurnoEntity)
-    private readonly turnoRepo: Repository<TurnoEntity>,
+  @InjectRepository(TurnoEntity)
+  private readonly turnoRepo: Repository<TurnoEntity>,
 
-    private readonly dataSource: DataSource,
-  ) {}
+  @InjectRepository(AnthropometricEntity)
+  private readonly anthropometricRepo: Repository<AnthropometricEntity>,
+
+  @InjectRepository(PatientFileEntity)
+private patientFileRepo: Repository<PatientFileEntity>,
+
+  private readonly dataSource: DataSource,
+) {}
 
   // --------------------------------------------------
   // 🆕 Crear visita (acto médico real)
   // --------------------------------------------------
-  async create(dto: CreateVisitDto) {
-  const paciente = await this.patientRepo.findOne({
-    where: { id: dto.patientId },
-  });
 
-  if (!paciente) {
-    throw new NotFoundException('Paciente no encontrado');
-  }
-
-  let turno: TurnoEntity | null = null;
-
-  if (dto.turnoId) {
-    turno = await this.turnoRepo.findOne({
-      where: { id: dto.turnoId },
-      relations: ['paciente'],
-    });
-
-    if (!turno) {
-      throw new NotFoundException('Turno no encontrado');
-    }
-
-    if (turno.paciente.id !== paciente.id) {
-      throw new BadRequestException(
-        'El turno no pertenece al paciente',
-      );
-    }
-
-    const visitaExistente = await this.visitRepo.findOne({
-      where: { turno: { id: turno.id } },
-    });
-
-    if (visitaExistente) {
-      throw new BadRequestException(
-        'Este turno ya tiene una visita registrada',
-      );
-    }
-  }
-
-  // ✅ FORMA CORRECTA (sin errores de TS)
-  const visita = new VisitEntity();
-  visita.paciente = paciente;
-  visita.turno = turno;
-  visita.fecha = dto.fecha;
-  visita.motivoConsulta = dto.motivoConsulta ?? null;
-  visita.observaciones = dto.observaciones ?? null;
-  visita.planTratamiento = dto.planTratamiento ?? null;
-  visita.evolucion = dto.evolucion ?? null;
-
-  return this.visitRepo.save(visita);
-}
-
-async createFullVisit(dto: CreateFullVisitDto) {
+async createFullVisit(
+  dto: CreateFullVisitDto,
+  files: Express.Multer.File[],
+) {
   return this.dataSource.transaction(async (manager) => {
-
     const patient = await manager.findOne(PatientEntity, {
       where: { id: dto.patientId },
     });
@@ -96,65 +67,251 @@ async createFullVisit(dto: CreateFullVisitDto) {
       throw new NotFoundException('Paciente no encontrado');
     }
 
+    let turno: TurnoEntity | null = null;
+
+    if (dto.turnoId) {
+      turno = await manager.findOne(TurnoEntity, {
+        where: { id: dto.turnoId },
+        relations: ['visita'],
+      });
+
+      if (!turno) throw new NotFoundException('Turno no encontrado');
+
+      if (turno.visita) {
+        throw new BadRequestException('Este turno ya tiene una visita');
+      }
+    }
+
+    // ----------------------------
+    // VISITA
+    // ----------------------------
     const visit = manager.create(VisitEntity, {
-      fecha: new Date(),
       paciente: patient,
-      motivoConsulta: dto.motivoConsulta ?? null,
-      observaciones: dto.observaciones ?? null,
+      turno: turno ?? undefined,
+      motivoConsulta: dto.motivoConsulta,
+      enfermedadActual: dto.enfermedadActual ?? null,
+      examenFisico: dto.examenFisico ?? null,
+      diagnostico: dto.diagnostico ?? null,
       planTratamiento: dto.planTratamiento ?? null,
       evolucion: dto.evolucion ?? null,
+      observaciones: dto.observaciones ?? null,
     });
 
     const savedVisit = await manager.save(visit);
 
+    // ----------------------------
+    // ANTROPOMETRIA
+    // ----------------------------
     if (dto.antropometria) {
       const { peso, talla } = dto.antropometria;
 
-      if (peso > 0 && talla > 0) {
-        const imc = peso / (talla * talla);
+      let imc: number | null = null;
 
-        const anthropometric = manager.create(AnthropometricEntity, {
-          fecha: new Date(),
-          peso,
-          talla,
-          imc,
-          paciente: patient,
+      if (peso != null && talla != null) {
+        imc = peso / (talla * talla);
+      }
+
+      const antropometria = manager.create(AnthropometricEntity, {
+        fecha: new Date(),
+        ...dto.antropometria,
+        imc,
+        patient,
+        visita: savedVisit,
+      });
+
+      await manager.save(antropometria);
+    }
+
+    // ----------------------------
+    // PRESCRIPCIONES
+    // ----------------------------
+    if (dto.prescripciones?.length) {
+      const prescripciones = dto.prescripciones.map((p) =>
+        manager.create(PrescriptionEntity, {
+          medicamento: p.medicamento,
+          dosis: p.dosis,
+          intervalo: p.intervalo,
+          fechaInicio: p.fechaInicio ?? null,
+          fechaFin: p.fechaFin ?? null,
+          patient,
           visita: savedVisit,
-        });
+        }),
+      );
 
-        await manager.save(anthropometric);
+      await manager.save(prescripciones);
+    }
+
+    // ----------------------------
+    // ANALISIS
+    // ----------------------------
+    if (dto.analisisBioquimicos?.length) {
+      for (const a of dto.analisisBioquimicos) {
+        const bio = await manager.save(
+          manager.create(Bioanalysis, {
+            tipo: a.tipo,
+            resultados: a.resultados ?? null,
+            fecha: new Date(),
+            patient,
+            visita: savedVisit,
+          }),
+        );
+
+        if (a.items?.length) {
+          const items = a.items.map((i) => {
+            let estado = EstadoAnalisis.NORMAL;
+
+            if (
+              i.valor != null &&
+              i.valorMin != null &&
+              i.valorMax != null
+            ) {
+              if (i.valor < i.valorMin) estado = EstadoAnalisis.BAJO;
+              else if (i.valor > i.valorMax)
+                estado = EstadoAnalisis.ALTO;
+            }
+
+            return manager.create(BioanalysisItem, {
+              ...i,
+              estado,
+              analysis: bio,
+            });
+          });
+
+          await manager.save(items);
+        }
       }
     }
 
-    return savedVisit;
+    // ----------------------------
+    // ARCHIVOS
+    // ----------------------------
+    if (files?.length) {
+      const uploadPath = `./uploads/patients/${patient.id}`;
+      await fs.promises.mkdir(uploadPath, { recursive: true });
+
+      for (const file of files) {
+        const newPath = `${uploadPath}/${file.filename}`;
+
+        await fs.promises.rename(file.path, newPath);
+
+        const fileEntity = manager.create(PatientFileEntity, {
+          filename: file.filename,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          storagePath: newPath,
+          size: file.size,
+          patient,
+          visit: savedVisit,
+        });
+
+        await manager.save(fileEntity);
+      }
+    }
+
+    // ----------------------------
+    // TURNO
+    // ----------------------------
+    if (turno) {
+      turno.estado = EstadoTurno.ATENDIDO;
+      await manager.save(turno);
+    }
+
+    return manager.findOne(VisitEntity, {
+      where: { id: savedVisit.id },
+      relations: [
+        'paciente',
+        'turno',
+        'medicionesAntropometricas',
+        'files',
+        'prescripciones',
+        'analisisBioquimicos',
+        'analisisBioquimicos.items',
+      ],
+    });
   });
+}
+
+// --------------------------------------------------
+// 📋 Historial clínico del paciente (PRO)
+// --------------------------------------------------
+async findByPatient(patientId: number): Promise<VisitResponseDto[]> {
+  const paciente = await this.patientRepo.findOne({
+    where: { id: patientId },
+  });
+
+  if (!paciente) {
+    throw new NotFoundException('Paciente no encontrado');
+  }
+
+  const visitas = await this.visitRepo.find({
+    where: { paciente: { id: patientId } },
+    relations: [
+      'turno',
+      'medicionesAntropometricas',
+      'analisisBioquimicos',
+      'analisisBioquimicos.items',
+      'prescripciones',
+      'files',
+    ],
+    order: { fecha: 'DESC' },
+  });
+
+  return visitas.map((v) => ({
+    id: v.id,
+    fecha: v.fecha,
+
+    motivoConsulta: v.motivoConsulta,
+    enfermedadActual: v.enfermedadActual,
+    examenFisico: v.examenFisico,
+    diagnostico: v.diagnostico,
+    planTratamiento: v.planTratamiento,
+    evolucion: v.evolucion,
+    observaciones: v.observaciones,
+
+    turno: v.turno
+      ? {
+          id: v.turno.id,
+          fecha: v.turno.fecha,
+          hora: v.turno.hora,
+        }
+      : null,
+
+    medicionesAntropometricas:
+      v.medicionesAntropometricas?.map((a) => ({
+        id: a.id,
+        peso: a.peso,
+        talla: a.talla,
+        imc: a.imc,
+      })) ?? [],
+
+analisisBioquimicos:
+  v.analisisBioquimicos?.map((a) => ({
+    id: a.id,
+    tipo: a.tipo,
+    resultados: a.resultados,
+    items: a.items ?? [], // 🔥 FUTURO FRONTEND
+  })) ?? [],
+
+    prescripciones:
+      v.prescripciones?.map((p) => ({
+        id: p.id,
+        nombre: p.medicamento,
+        indicaciones: p.intervalo,
+      })) ?? [],
+
+    files:
+      v.files?.map((f) => ({
+        id: f.id,
+        originalName: f.originalName,
+        storagePath: f.storagePath,
+        size: f.size,
+        mimeType: f.mimeType,
+      })) ?? [],
+  }));
 }
 
 
 
-
-  // --------------------------------------------------
-  // 📋 Historial clínico del paciente
-  // --------------------------------------------------
-  async findByPatient(patientId: number) {
-    const paciente = await this.patientRepo.findOne({
-      where: { id: patientId },
-    });
-
-    if (!paciente) {
-      throw new NotFoundException('Paciente no encontrado');
-    }
-
-    return this.visitRepo.find({
-      where: { paciente: { id: patientId } },
-      relations: [
-        'turno',
-        'medicionesAntropometricas',
-        'analisisBioquimicos',
-      ],
-      order: { fecha: 'DESC' },
-    });
-  }
 
   // --------------------------------------------------
   // ✏️ Actualizar visita (nota clínica)

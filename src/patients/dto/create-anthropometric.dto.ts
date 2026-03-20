@@ -2,6 +2,7 @@
 import { IsDateString, IsOptional, IsNumber, IsInt, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
 
+
 export class CreateAnthropometricDto {
   @IsDateString()
   fecha!: string;
