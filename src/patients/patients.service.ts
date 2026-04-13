@@ -29,7 +29,7 @@ import { PrescriptionEntity } from './entities/prescription.entity';
 import { PatientFileEntity } from '@/patient-files/entities/patient-file.entity';
 import { ClinicalHistoryItemDto } from './dto/clinical-history.dto';
 import { BioanalysisItem } from './entities/bioanalysis-item.entity';
-import { EstadoAnalisis } from '@/common/enums/estado_analisis';
+
 
 @Injectable()
 export class PatientsService {
@@ -119,7 +119,7 @@ export class PatientsService {
 
       if (!patient)
         throw new NotFoundException('Paciente no encontrado');
-
+console.log(patient)
       return patient;
     } catch (error) {
       handleServiceError(
@@ -308,10 +308,17 @@ export class PatientsService {
   }
   /** FIN CREAR PACIENTE */
 
+
+/** PACIENTE SIMPLE */
+async getBasicPatient(id: number) {
+  return this.patientsRepo.findOne({
+    where: { id },
+    select: ['id', 'nombre', 'apellido'],
+  });
+}
+
   /** HISTORIA CLINICA */
-  async getClinicalHistory(
-    patientId: number,
-  ): Promise<ClinicalHistoryItemDto[]> {
+  async getClinicalHistory(patientId: number,): Promise<ClinicalHistoryItemDto[]> {
 
     const patient = await this.patientRepo.findOne({
       where: { id: patientId },
@@ -327,6 +334,7 @@ export class PatientsService {
         'turno',
         'medicionesAntropometricas',
         'analisisBioquimicos',
+        'analisisBioquimicos.items',
         'prescripciones',
         'files',
       ],
@@ -392,7 +400,7 @@ export class PatientsService {
         if (!a.fecha) return;
 
         history.push({
-          fecha: new Date(a.fecha),
+          fecha: a.fecha,
           tipo: 'ANALISIS',
           data: {
             tipo: a.tipo,
@@ -449,7 +457,9 @@ export class PatientsService {
         new Date(b.fecha).getTime() -
         new Date(a.fecha).getTime(),
     );
-    console.log('Historia clínica generada para paciente ID', patientId, history);
+     console.log('Historia clínica generada para paciente ID');
+    console.log( patientId, history);
+     console.log('Historia clínica generada para paciente ID');
     return history;
   }
 
@@ -604,17 +614,7 @@ export class PatientsService {
       // 🔥 ITEMS PRO (sin create())
       if (dto.items && dto.items.length > 0) {
         const items: BioanalysisItem[] = dto.items.map((i) => {
-          let estado: EstadoAnalisis = EstadoAnalisis.SIN_REFERENCIA;
 
-          if (
-            i.valor !== undefined &&
-            i.valorMin !== undefined &&
-            i.valorMax !== undefined
-          ) {
-            if (i.valor < i.valorMin) estado = EstadoAnalisis.BAJO;
-            else if (i.valor > i.valorMax) estado = EstadoAnalisis.ALTO;
-            else estado = EstadoAnalisis.NORMAL;
-          }
 
           const item = new BioanalysisItem();
           item.nombre = i.nombre;
@@ -622,7 +622,7 @@ export class PatientsService {
           item.unidad = i.unidad ?? null;
           item.valorMin = i.valorMin ?? null;
           item.valorMax = i.valorMax ?? null;
-          item.estado = estado;
+       
           item.analysis = savedBio;
 
           return item;

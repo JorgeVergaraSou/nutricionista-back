@@ -2,7 +2,7 @@
 export enum AntecedentType {
   FAMILIAR = 'Familiar',
   PERSONAL = 'Personal',
-  QUIRURGICO = 'Quirurgico',
+  QUIRURGICO = 'Quirúrgico',
   ALERGIA = 'Alergia',
   HABITO = 'Habito',
   FARMACOLOGICO = 'Farmacologico',

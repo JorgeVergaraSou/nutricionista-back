@@ -1,3 +1,4 @@
+//src/patients/entities/antecedent.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,

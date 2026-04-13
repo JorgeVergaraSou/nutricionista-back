@@ -26,11 +26,11 @@ export class VisitsController {
   constructor(private readonly visitsService: VisitsService) {}
 
   // 🆕 Crear visita
-  /*
-  @Post()
+  
+  @Post('crear-visita')
   create(@Body() dto: CreateVisitDto) {
     return this.visitsService.create(dto);
-  }*/
+  }
 
 /** ==============================
  * INICIO NUEVA VISITA FULL

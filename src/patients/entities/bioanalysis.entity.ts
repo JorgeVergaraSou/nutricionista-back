@@ -19,8 +19,8 @@ export class Bioanalysis {
   @Column({ length: 150 })
   tipo!: string;
 
-@Column({ type: 'text', nullable: true })
-resultados!: string | null;
+  @Column({ type: 'text', nullable: true })
+  resultados!: string | null;
 
   @Column({ type: 'date', nullable: true })
   fecha!: Date | null;

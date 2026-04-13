@@ -7,7 +7,6 @@ import {
 } from 'typeorm';
 
 import { Bioanalysis } from './bioanalysis.entity';
-import { EstadoAnalisis } from '@/common/enums/estado_analisis';
 
 @Entity('bioanalysis_items')
 export class BioanalysisItem {
@@ -20,8 +19,8 @@ export class BioanalysisItem {
   @Column({ type: 'float', nullable: true })
   valor!: number | null;
 
-@Column({ type: 'varchar', nullable: true })
-unidad!: string | null;
+  @Column({ type: 'varchar', nullable: true })
+  unidad!: string | null;
 
 
   @Column({ type: 'float', nullable: true })
@@ -29,9 +28,6 @@ unidad!: string | null;
 
   @Column({ type: 'float', nullable: true })
   valorMax!: number | null;
-
-  @Column({ type: 'enum', enum: EstadoAnalisis })
-  estado!: EstadoAnalisis;
 
 
   @ManyToOne(() => Bioanalysis, (a) => a.items, {

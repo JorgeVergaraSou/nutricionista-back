@@ -22,12 +22,13 @@ import { BioanalysisItem } from '@/patients/entities/bioanalysis-item.entity';
 
 // ENUMS
 import { EstadoTurno } from '@/common/enums/estado-turno.enum';
-import { EstadoAnalisis } from '@/common/enums/estado_analisis';
+
 
 // DTOs
 import { UpdateVisitDto } from './dto/update-visit.dto';
 import { CreateFullVisitDto } from './dto/create-full-visit.dto';
 import { VisitResponseDto } from './dto/visit-response.dto';
+import { CreateVisitDto } from './dto/create-visit.dto';
 
 @Injectable()
 export class VisitsService {
@@ -54,10 +55,8 @@ private patientFileRepo: Repository<PatientFileEntity>,
   // 🆕 Crear visita (acto médico real)
   // --------------------------------------------------
 
-async createFullVisit(
-  dto: CreateFullVisitDto,
-  files: Express.Multer.File[],
-) {
+async createFullVisit(dto: CreateFullVisitDto,files: Express.Multer.File[],) {
+   console.log("DTO COMPLETO:", JSON.stringify(dto, null, 2));
   return this.dataSource.transaction(async (manager) => {
     const patient = await manager.findOne(PatientEntity, {
       where: { id: dto.patientId },
@@ -146,6 +145,16 @@ async createFullVisit(
     // ----------------------------
     if (dto.analisisBioquimicos?.length) {
       for (const a of dto.analisisBioquimicos) {
+
+             // ✅ LOG #3 (ya te lo había dicho)
+    console.log("ANALISIS INDIVIDUAL:", a);
+
+    // 🔥 LOG #4 (EL DEFINITIVO)
+    console.log("ITEMS DEL ANALISIS:", a.items);
+
+    // 🔥 LOG #5 (CRÍTICO)
+    console.log("a.items?.length:", a.items?.length);
+
         const bio = await manager.save(
           manager.create(Bioanalysis, {
             tipo: a.tipo,
@@ -158,21 +167,11 @@ async createFullVisit(
 
         if (a.items?.length) {
           const items = a.items.map((i) => {
-            let estado = EstadoAnalisis.NORMAL;
 
-            if (
-              i.valor != null &&
-              i.valorMin != null &&
-              i.valorMax != null
-            ) {
-              if (i.valor < i.valorMin) estado = EstadoAnalisis.BAJO;
-              else if (i.valor > i.valorMax)
-                estado = EstadoAnalisis.ALTO;
-            }
 
             return manager.create(BioanalysisItem, {
               ...i,
-              estado,
+            
               analysis: bio,
             });
           });
@@ -229,6 +228,54 @@ async createFullVisit(
       ],
     });
   });
+}
+
+/** crear visita simple */
+async create(dto: CreateVisitDto) {
+  const patient = await this.patientRepo.findOne({
+    where: { id: dto.patientId },
+  });
+
+  if (!patient) {
+    throw new NotFoundException('Paciente no encontrado');
+  }
+
+  let turno: TurnoEntity | null = null;
+
+  if (dto.turnoId) {
+    turno = await this.turnoRepo.findOne({
+      where: { id: dto.turnoId },
+      relations: ['visita'],
+    });
+
+    if (!turno) {
+      throw new NotFoundException('Turno no encontrado');
+    }
+
+    if (turno.visita) {
+      throw new BadRequestException('El turno ya tiene una visita');
+    }
+  }
+
+  const visit = this.visitRepo.create({
+    paciente: patient,
+    turno: turno ?? undefined,
+    fecha: dto.fecha ?? new Date(),
+    motivoConsulta: dto.motivoConsulta ?? null,
+    observaciones: dto.observaciones ?? null,
+    planTratamiento: dto.planTratamiento ?? null,
+    evolucion: dto.evolucion ?? null,
+  });
+
+  const saved = await this.visitRepo.save(visit);
+
+  // marcar turno como atendido
+  if (turno) {
+    turno.estado = EstadoTurno.ATENDIDO;
+    await this.turnoRepo.save(turno);
+  }
+
+  return saved;
 }
 
 // --------------------------------------------------

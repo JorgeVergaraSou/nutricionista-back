@@ -62,6 +62,11 @@ export class PatientsController {
     return this.svc.getClinicalHistory(id);
   }
 
+  @Get('paciente-simple/:id')
+  getBasicPatient(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.getBasicPatient(id);
+  }
+
   @Put(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePatientDto) {
     return this.svc.updatePatient(id, dto);
