@@ -119,7 +119,7 @@ export class PatientsService {
 
       if (!patient)
         throw new NotFoundException('Paciente no encontrado');
-console.log(patient)
+      console.log(patient)
       return patient;
     } catch (error) {
       handleServiceError(
@@ -309,13 +309,13 @@ console.log(patient)
   /** FIN CREAR PACIENTE */
 
 
-/** PACIENTE SIMPLE */
-async getBasicPatient(id: number) {
-  return this.patientsRepo.findOne({
-    where: { id },
-    select: ['id', 'nombre', 'apellido'],
-  });
-}
+  /** PACIENTE SIMPLE */
+  async getBasicPatient(id: number) {
+    return this.patientsRepo.findOne({
+      where: { id },
+      select: ['id', 'nombre', 'apellido'],
+    });
+  }
 
   /** HISTORIA CLINICA */
   async getClinicalHistory(patientId: number,): Promise<ClinicalHistoryItemDto[]> {
@@ -418,13 +418,14 @@ async getBasicPatient(id: number) {
         if (!p.fechaInicio) return;
 
         history.push({
-          fecha: p.fechaInicio,
+          fecha: v.fecha,
           tipo: 'PRESCRIPCION',
           data: {
             medicamento: p.medicamento,
             dosis: p.dosis,
             intervalo: p.intervalo,
             activa: p.activa,
+            fechaInicio: p.fechaInicio, // 👈 sigue existiendo
             fechaFin: p.fechaFin,
           },
         });
@@ -457,9 +458,9 @@ async getBasicPatient(id: number) {
         new Date(b.fecha).getTime() -
         new Date(a.fecha).getTime(),
     );
-     console.log('Historia clínica generada para paciente ID');
-    console.log( patientId, history);
-     console.log('Historia clínica generada para paciente ID');
+    console.log('Historia clínica generada para paciente ID');
+    console.log(patientId, history);
+    console.log('Historia clínica generada para paciente ID');
     return history;
   }
 
@@ -622,7 +623,7 @@ async getBasicPatient(id: number) {
           item.unidad = i.unidad ?? null;
           item.valorMin = i.valorMin ?? null;
           item.valorMax = i.valorMax ?? null;
-       
+
           item.analysis = savedBio;
 
           return item;
